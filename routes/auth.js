@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
+const admin = require("../utils/firebaseAdmin"); // adjust path as needed
 
 // Secret key for JWT
 const JWT_SECRET = "your_secret_key"; // move to env in production
@@ -55,6 +56,44 @@ router.post("/forgot-password", async (req, res) => {
     res.status(200).json({ message: "Password reset instructions sent" });
   } catch (err) {
     res.status(500).json({ message: "Error sending reset instructions" });
+  }
+});
+
+// Google Authentication Route
+router.post("/google-auth", async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    // Verify the Firebase ID token
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    const { uid, email, name } = decodedToken;
+
+    // Check if user exists
+    let user = await User.findOne({ email });
+
+    // If not, create new user (optional password fallback using UID)
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        password: uid, // or a generated string (just not used manually)
+        googleId: uid,
+      });
+    }
+
+    // Generate your own JWT for session handling
+    const jwtToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET || "your_secret_key",
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    res.json({ token: jwtToken, user: { id: user._id, name, email } });
+  } catch (error) {
+    console.error(error);
+    res.status(401).json({ message: "Invalid Google token", error });
   }
 });
 
