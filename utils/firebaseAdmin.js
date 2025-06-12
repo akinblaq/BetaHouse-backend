@@ -1,8 +1,7 @@
-// backend/utils/firebaseAdmin.js
-const admin = require("firebase-admin");
 require("dotenv").config();
+const admin = require("firebase-admin");
 
-const serviceAccount = {
+const sa = {
   type: process.env.FIREBASE_TYPE,
   project_id: process.env.FIREBASE_PROJECT_ID,
   private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
@@ -15,8 +14,8 @@ const serviceAccount = {
   client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
 };
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+if (!admin.apps.length) {
+  admin.initializeApp({ credential: admin.credential.cert(sa) });
+}
 
 module.exports = admin;

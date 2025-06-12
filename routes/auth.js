@@ -4,9 +4,10 @@ const router = express.Router();
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const admin = require("../utils/firebaseAdmin"); // adjust path as needed
-
 // Secret key for JWT
 const JWT_SECRET = "your_secret_key"; // move to env in production
+const crypto = require("crypto");
+const sendEmail = require("../utils/sendEmail");
 
 // Register
 router.post("/signup", async (req, res) => {
@@ -42,20 +43,6 @@ router.post("/login", async (req, res) => {
     res.json({ user: { id: user._id, name: user.name, email }, token });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
-  }
-});
-
-// routes/auth.js
-router.post("/forgot-password", async (req, res) => {
-  const { email } = req.body;
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    // TODO: Generate token, send email with reset link
-    res.status(200).json({ message: "Password reset instructions sent" });
-  } catch (err) {
-    res.status(500).json({ message: "Error sending reset instructions" });
   }
 });
 
@@ -95,6 +82,61 @@ router.post("/google-auth", async (req, res) => {
     console.error(error);
     res.status(401).json({ message: "Invalid Google token", error });
   }
+});
+
+// ============ FORGOT PASSWORD LOGIC =============
+router.post("/forgot-password", async (req, res) => {
+  console.log("📩 Forgot-password endpoint hit with", req.body.email);
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  //  Generate random token (32 bytes → hex)
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const tokenExpire = Date.now() + 15 * 60 * 1000; // 15 min
+
+  user.resetToken = resetToken;
+  user.resetTokenExpire = tokenExpire;
+  await user.save();
+
+  const resetURL = `${process.env.BASE_URL}/reset-password/${resetToken}`;
+
+  const html = `
+    <p>Hello ${user.name || "there"},</p>
+    <p>Click the link below to reset your BetaHouse password (valid 15 min):</p>
+    <a href="${resetURL}">${resetURL}</a>
+    <p>If you didn’t request this, just ignore this e-mail.</p>
+  `;
+
+  try {
+    await sendEmail({ to: email, subject: "Password reset", html });
+    res.json({ message: "Reset e-mail sent" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "E-mail failed to send" });
+  }
+});
+
+// ============== RESET PASSWORD LOGIC ============
+
+router.post("/reset-password/:token", async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  const user = await User.findOne({
+    resetToken: token,
+    resetTokenExpire: { $gt: Date.now() },
+  });
+
+  if (!user)
+    return res.status(400).json({ message: "Invalid or expired token" });
+
+  user.password = password; // pre-save hook re-hashes
+  user.resetToken = undefined;
+  user.resetTokenExpire = undefined;
+  await user.save();
+
+  res.json({ message: "Password updated. You can log in now." });
 });
 
 module.exports = router;
