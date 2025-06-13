@@ -26,12 +26,13 @@ const app = express();
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
-      "https://beta-house-frontend-pe4f.vercel.app/",
+      "http://localhost:5173", // dev
+      "https://beta-house-frontend-pe4f.vercel.app", // your live frontend
     ],
     credentials: true,
   })
 );
+
 // Allow requests from any origin
 app.use(express.json()); // Parse JSON request bodies
 // app.use(helmet());                  // (uncomment to add security headers)
