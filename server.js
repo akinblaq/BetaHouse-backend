@@ -23,13 +23,24 @@ if (!process.env.MONGO_URI) {
 const app = express();
 
 // Global middleware stack
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://beta-house-frontend-pe4f.vercel.app",
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173", // dev
-      "https://beta-house-frontend-pe4f.vercel.app", // your live frontend
-    ],
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed for this origin: " + origin));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
@@ -55,6 +66,7 @@ mongoose
 // Route mounts
 app.use("/api/auth", require("./routes/auth")); // Signup / login / reset
 app.use("/api/protected", require("./routes/protected")); // Routes requiring auth
+
 app.use("/api/properties", require("./routes/Property")); // CRUD for properties
 
 // 404 handler (runs if no route matches)
